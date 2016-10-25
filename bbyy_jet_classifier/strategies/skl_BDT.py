@@ -43,8 +43,12 @@ class sklBDT(BaseStrategy):
             fit_params = {"sample_weight":train_data["w"]}
             # Run grid search over provided ranges
             logging.getLogger("skl_BDT").info("Running grid search parameter optimisation...")
-            grid_search = GridSearchCV(estimator=GradientBoostingClassifier(learning_rate=0.2, min_samples_leaf=50, max_features="sqrt", subsample=0.8, random_state=10),
-                                       param_grid=parameters, fit_params=fit_params, scoring="roc_auc", n_jobs=1, iid=False, cv=3, verbose=1)
+            grid_search = GridSearchCV(
+                estimator=GradientBoostingClassifier(
+                    learning_rate=0.2, min_samples_leaf=50, max_features="sqrt", subsample=0.8, random_state=10
+                ),
+                param_grid=parameters, fit_params=fit_params, scoring="roc_auc", n_jobs=-1, iid=False, cv=3, verbose=1
+            )
             grid_search.fit(train_data["X"], train_data["y"])
             for param_name in parameters.keys():
                 if grid_search.best_params_[param_name] in [ parameters[param_name][0], parameters[param_name][-1] ]:
@@ -55,8 +59,8 @@ class sklBDT(BaseStrategy):
 
         else:
             classifier = GradientBoostingClassifier(
-                n_estimators=5, # was n_estimators=300
-                max_depth=6, # was max_depth=15
+                n_estimators=300, # was n_estimators=300
+                max_depth=10, # was max_depth=15
                 min_samples_leaf=40, # was min_samples_split=0.5 * len(train_data["y"])
                 verbose=1
                 )

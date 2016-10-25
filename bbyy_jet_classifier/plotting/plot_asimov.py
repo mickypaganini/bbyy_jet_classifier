@@ -2,9 +2,10 @@ import matplotlib.pyplot as plt
 import matplotlib
 import cPickle
 import numpy as np
+import os
 import plot_atlas
 
-def bdt_old_ratio(data, strategy, baseline_strategy, lower_bound):
+def bdt_old_ratio(data, category, strategy, baseline_strategy, lower_bound):
 
     plot_atlas.set_style()
     figure = plt.figure(figsize=(6, 6), dpi=100)
@@ -34,5 +35,5 @@ def bdt_old_ratio(data, strategy, baseline_strategy, lower_bound):
     plt.ylim(ymin=0.2, ymax=2.8)
 
     plt.legend(loc='upper left')
-    plt.savefig('threshold_ratio_{}.pdf'.format(strategy))
+    plt.savefig(os.path.join('output', 'threshold_ratio_{}_{}.pdf'.format(strategy, category)))
     plt.close(figure)

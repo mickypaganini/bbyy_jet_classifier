@@ -93,11 +93,11 @@ def main(strategy, category, lower_bound, intervals):
 
     # -- Write dictionary of Asimov significances to disk
     utils.ensure_directory(os.path.join("output", "pickles"))
-    with open(os.path.join("output", "pickles", "multi_proc_{}.pkl".format(strategy)), "wb") as f:
+    with open(os.path.join("output", "pickles", "multi_proc_{}_{}.pkl".format(strategy, category)), "wb") as f:
         cPickle.dump(asimov_dict, f)
 
     # -- Plot Z_BDT/Z_old for different threshold values
-    plot_asimov.bdt_old_ratio(asimov_dict, strategy, 'mHmatch', lower_bound)
+    plot_asimov.bdt_old_ratio(asimov_dict, category, strategy, 'mHmatch', lower_bound)
     
     # -- Print Asimov significance for different strategies and different samples in tabular form
     #    Each table corresponds to a different threshold value

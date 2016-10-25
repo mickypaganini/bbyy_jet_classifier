@@ -47,7 +47,7 @@ class RootTMVA(BaseStrategy):
         #-- Define methods:
         # ["NTrees=200", "MinNodeSize=0.1", "MaxDepth=6", "BoostType=Grad", "SeparationType=GiniIndex",  "NegWeightTreatment=IgnoreNegWeightsInTraining"]
         factory.BookMethod(TMVA.Types.kBDT, "BDT", ":".join(
-            ["NTrees=300", "MinNodeSize=0.01", "MaxDepth=8", "BoostType=Grad", "SeparationType=GiniIndex",  "NegWeightTreatment=Pray"]
+            ["NTrees=300", "MinNodeSize=0.01", "MaxDepth=15", "BoostType=Grad", "SeparationType=GiniIndex", "NegWeightTreatment=IgnoreNegWeightsInTraining"]#  "NegWeightTreatment=Pray"]
         ))
 
         # -- Have we considered using a Fisher classifier?
