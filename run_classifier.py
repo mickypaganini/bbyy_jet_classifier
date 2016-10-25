@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import argparse
-import cPickle
+import cPickle as pickle
 import logging
 import os
 from bbyy_jet_classifier import strategies, process_data, utils
@@ -84,14 +84,38 @@ if __name__ == "__main__":
         input_samples.append(os.path.splitext(os.path.split(input_filename)[-1])[0])
 
         # -- Load in root files and return literally everything about the data
-        classification_variables, variable2type,\
-            training_data[input_samples[-1]], testing_data[input_samples[-1]],\
-            yhat_old_test_data[input_samples[-1]], test_events_data[input_samples[-1]]\
-            = process_data.load(input_filename, args.tree, args.exclude, args.ftrain, args.max_events)
+        pklpath = os.path.join(os.path.split(input_filename)[0], 
+            os.path.split(input_filename)[1] + '---' + args.tree + '---' + '_'.join(args.exclude) + '---' + 
+            str(args.max_events) + '---' + str(args.ftrain) + '---train.pkl')
 
-        #-- Plot input distributions
-        plot_inputs.input_distributions(classification_variables, training_data[input_samples[-1]], testing_data[input_samples[-1]],
-                                        output_directory=os.path.join(args.output, "classification_variables", input_samples[-1]))
+        try:
+            logger.info('Trying to load data from ' + pklpath)
+            train_pkl = pickle.load(open(pklpath, 'rb'))
+            test_pkl = pickle.load(open(pklpath.replace('---train.pkl', '---test.pkl'), 'rb'))
+            classification_variables = train_pkl['classification_variables']
+            variable2type = train_pkl['variable2type']
+            if classification_variables != test_pkl['classification_variables']:
+                raise ValueError('The classification variables in {} do not match those in {}'.format(
+                    pklpath, pklpath.replace('---train.pkl', '---test.pkl')))
+            if variable2type != test_pkl['variable2type']:
+                raise ValueError('The variable2type in {} does not match the one in {}'.format(
+                    pklpath, pklpath.replace('---train.pkl', '---test.pkl')))
+            training_data[input_samples[-1]] = train_pkl['train_data']
+            testing_data[input_samples[-1]] = test_pkl['test_data']
+            yhat_old_test_data[input_samples[-1]] = test_pkl['yhat_old_test_data']
+            test_events_data[input_samples[-1]] = test_pkl['test_events_data']
+            logger.info('Data found and loaded from ' + pklpath)
+
+        except:
+            logger.info('No data found in {}. Reprocessing... '.format(pklpath))
+            classification_variables, variable2type,\
+                training_data[input_samples[-1]], testing_data[input_samples[-1]],\
+                yhat_old_test_data[input_samples[-1]], test_events_data[input_samples[-1]]\
+                = process_data.load(input_filename, args.tree, args.exclude, args.ftrain, args.max_events, pklpath)
+
+            #-- Plot input distributions
+            plot_inputs.input_distributions(classification_variables, training_data[input_samples[-1]], testing_data[input_samples[-1]],
+                                            output_directory=os.path.join(args.output, "classification_variables", input_samples[-1]))
 
     # -- Combine all training data into a new sample
     if args.ftrain > 0:
@@ -166,7 +190,7 @@ if __name__ == "__main__":
                 # -- print performance
                 logger.info("Writing out event-level performance information...")
                 utils.ensure_directory(os.path.join(ML_strategy.output_directory, "pickles", sample_name))
-                cPickle.dump({"yhat_test_ev": yhat_test_ev["classifier"],
+                pickle.dump({"yhat_test_ev": yhat_test_ev["classifier"],
                               "yhat_mHmatch_test_ev": yhat_test_ev["mHmatch"],
                               "yhat_pThigh_test_ev": yhat_test_ev["pThigh"],
                               "yhat_pTjb_test_ev": yhat_test_ev["pTjb"],
@@ -174,7 +198,7 @@ if __name__ == "__main__":
                               "mjb_event": test_events_data[sample_name]["m_jb"],
                               "pTj_event": test_events_data[sample_name]["pT_j"],
                               "w_test": test_events_data[sample_name]["w"]},
-                             open(os.path.join(ML_strategy.output_directory, "pickles", sample_name, "{}_event_performance_dump.pkl".format(ML_strategy.name)), "wb"), cPickle.HIGHEST_PROTOCOL)
+                             open(os.path.join(ML_strategy.output_directory, "pickles", sample_name, "{}_event_performance_dump.pkl".format(ML_strategy.name)), "wb"), pickle.HIGHEST_PROTOCOL)
 
         else:
             logger.info("100% of the sample was used for training -- no independent testing can be performed.")

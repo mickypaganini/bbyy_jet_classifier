@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import logging
 import numpy as np
+import cPickle as pickle
 from numpy.lib.recfunctions import stack_arrays
 from root_numpy import root2array
 from sklearn.cross_validation import train_test_split
@@ -8,7 +9,7 @@ from sklearn.feature_selection import SelectKBest, f_classif
 
 TYPE_2_CHAR = {"int32": "I", "float64": "D", "float32": "F"}
 
-def load(input_filename, treename, excluded_variables, training_fraction, max_events):
+def load(input_filename, treename, excluded_variables, training_fraction, max_events, pklpath):
     """
     Definition:
     -----------
@@ -106,6 +107,24 @@ def load(input_filename, treename, excluded_variables, training_fraction, max_ev
     # -- ANOVA for feature selection (please, know what you're doing)
     if training_fraction > 0:
         feature_selection(train_data, classification_variables, 5)
+
+
+    test_dict = {
+        'test_data' : test_data,
+        'yhat_old_test_data' : yhat_old_test_data,
+        'test_events_data': test_events_data,
+        'classification_variables' : classification_variables,
+        'variable2type' : variable2type
+    }
+    train_dict = {
+        'train_data': train_data, 
+        'classification_variables' : classification_variables,
+        'variable2type' : variable2type
+    }
+
+
+    pickle.dump(train_data, open(pklpath, 'wb'), pickle.HIGHEST_PROTOCOL)
+    pickle.dump(test_dict, open(pklpath.replace('---test.pkl', '---test.pkl'), 'wb'), pickle.HIGHEST_PROTOCOL)
 
     return classification_variables, variable2type, train_data, test_data, yhat_old_test_data, test_events_data
 
