@@ -4,12 +4,14 @@ import numpy as np
 import cPickle as pickle
 from numpy.lib.recfunctions import stack_arrays
 from root_numpy import root2array
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest, f_classif
+import os
+import utils
 
 TYPE_2_CHAR = {"int32": "I", "float64": "D", "float32": "F"}
 
-def load(input_filename, treename, excluded_variables, training_fraction, max_events, pklpath):
+def load(input_filename, treename, training_fraction, pklpath):
     """
     Definition:
     -----------
@@ -42,27 +44,33 @@ def load(input_filename, treename, excluded_variables, training_fraction, max_ev
                 pT_j = array of pTj for each jet
                 w    = array of event weights
     """
-    logging.getLogger("process_data").info("Loading input from ROOT file: {}".format(input_filename))
-    for v_name in excluded_variables:
-        logging.getLogger("process_data").info("... excluding variable {}".format(v_name))
+    utils.configure_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("Loading input from ROOT file: {}".format(input_filename))
+    # MOVE THIS TO RUN CLASSIFIER WHEN YOU LOAD IN DATA!!
+    # for v_name in excluded_variables:
+    #     logging.getLogger("process_data").info("... excluding variable {}".format(v_name))
+
     # -- import all root files into data_rec
     data_rec = root2array(input_filename, treename)
     # -- ordered dictionary of branches and their type
     variable2type = OrderedDict(((v_name, TYPE_2_CHAR[data_rec[v_name][0].dtype.name]) for v_name in data_rec.dtype.names
-                                 if v_name not in excluded_variables))
+                                 #if v_name not in excluded_variables
+                                 ))
     # -- variables used as inputs to the classifier
     classification_variables = [name for name in variable2type.keys() if name not in ["event_weight", "isCorrect"]]
 
     # -- throw away events with no jet pairs
     n_events_before_rejection = data_rec.size
     data_rec = data_rec[np.array([len(data_rec["isCorrect"][ev]) > 0 for ev in xrange(data_rec.shape[0])])]
-    # -- only use max_events events
-    if max_events > 0 :
-        data_rec = data_rec[np.random.randint(data_rec.shape[0], size=max_events)]
-    logging.getLogger("process_data").info("Found {} events of which {} ({}%) remain after rejecting empty events".format(n_events_before_rejection, data_rec.size, (100*data_rec.size)/n_events_before_rejection))
+    # -- only use N = max_events randomly chosen events
+    # MOVE THIS TO RUN CLASSIFIER WHEN YOU LOAD IN DATA!!
+    # if max_events > 0 :
+    #     data_rec = data_rec[np.random.randint(data_rec.shape[0], size=max_events)]
+    logger.info("Found {} events of which {} ({}%) remain after rejecting empty events".format(n_events_before_rejection, data_rec.size, (100*data_rec.size)/n_events_before_rejection))
 
     # -- slice rec array to only contain input features
-    X = data_rec[classification_variables]
+    X = data_rec[classification_variables] 
     y = data_rec["isCorrect"]
     # -- NB. weights can be positive or negative at NLO
     #    convert one weight per event to one weight per jet
@@ -108,7 +116,6 @@ def load(input_filename, treename, excluded_variables, training_fraction, max_ev
     if training_fraction > 0:
         feature_selection(train_data, classification_variables, 5)
 
-
     test_dict = {
         'test_data' : test_data,
         'yhat_old_test_data' : yhat_old_test_data,
@@ -122,12 +129,11 @@ def load(input_filename, treename, excluded_variables, training_fraction, max_ev
         'variable2type' : variable2type
     }
 
-
+    logger.info('Dumping pickle in {}'.format(pklpath))
     pickle.dump(train_data, open(pklpath, 'wb'), pickle.HIGHEST_PROTOCOL)
-    pickle.dump(test_dict, open(pklpath.replace('---test.pkl', '---test.pkl'), 'wb'), pickle.HIGHEST_PROTOCOL)
+    pickle.dump(test_dict, open(pklpath.replace('---train.pkl', '---test.pkl'), 'wb'), pickle.HIGHEST_PROTOCOL)
 
     return classification_variables, variable2type, train_data, test_data, yhat_old_test_data, test_events_data
-
 
 def feature_selection(train_data, features, k):
     """
@@ -206,7 +212,13 @@ def combine_datasets(dataset_list):
 
     # -- Stack X arrays and then reshape
     X_combined = stack_arrays([dataset["X"] for dataset in dataset_list], asrecarray=True, usemask=False)
-    X_combined.resize(X_shape)
+    # X_combined.resize(X_shape)
+    X_combined.reshape(X_shape)
+
+    # -- Shuffle everything, otherwise the inputs will be ordered by class
+    ix = range(X_combined.shape[0])
+    np.random.shuffle(ix)
+    X_combined, y_combined, w_combined = X_combined[ix], y_combined[ix], w_combined[ix]
 
     # -- Recombine into a dictionary and return
     return {"X": X_combined, "y": y_combined, "w": w_combined}
@@ -256,3 +268,28 @@ def flatten(column):
         return np.array([v for e in column for v in e])
     except (TypeError, ValueError):
         return column
+
+if __name__ == '__main__':
+
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser(description="Prepare data for 2nd jet classifier")
+    parser.add_argument("--input",
+        required=True, type=str, nargs="+", 
+        help="List of input file names")
+    parser.add_argument("--tree",
+        type=str, default="events_1tag",
+        help="Name of the tree in the ntuples. Default: events_1tag")
+    # parser.add_argument("--max_events",
+    #     type=int, default=-1, 
+    #     help="Maximum number of events to use (for debugging). Default: all")
+    parser.add_argument("--ftrain", type=float, default=0.6, 
+        help="Fraction of events to use for training. Default: 0.6.")
+    args = parser.parse_args()
+
+    for input_filename in args.input:
+        pklpath = os.path.join(os.path.split(input_filename)[0], 
+            os.path.split(input_filename)[1] + '---' + args.tree + '---' + str(args.ftrain) + '---train.pkl')
+
+        _ = load(input_filename, args.tree, args.ftrain, pklpath)
+    sys.exit(0)

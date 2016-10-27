@@ -4,7 +4,7 @@ import os
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.externals import joblib
 from sklearn.metrics import classification_report
-from sklearn.grid_search import GridSearchCV
+from sklearn.model_selection import GridSearchCV
 from . import BaseStrategy
 from ..utils import ensure_directory
 
