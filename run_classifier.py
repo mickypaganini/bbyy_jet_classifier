@@ -9,10 +9,7 @@ import numpy as np
 
 FTRAIN = 0.7
 # TO DO:
-# - remove excluded variables
-# - remove events using max_events
-# - load train and test separately
-
+# - discuss whether we want the training fraction to float
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run ML classifiers for 2nd jet selection")
@@ -30,9 +27,6 @@ def parse_args():
     parent_parser.add_argument("--exclude",
         type=str, nargs="+", default=[], metavar="VARIABLE_NAME", 
         help="List of variables that are present in the tree but should not be used by the classifier")
-    parent_parser.add_argument("--max_events",
-        type=int, default=-1, 
-        help="Maximum number of events to use (for debugging). Default: all")
     parent_parser.add_argument("--output",
         type=str, default="output",
         help="Output directory. Default: output") # needed?
@@ -43,6 +37,9 @@ def parse_args():
     subparsers = parser.add_subparsers(title="actions", dest='action')
     parser_train = subparsers.add_parser("train", parents=[parent_parser],
         help="train BDT for jet-pair classification")
+    parser_train.add_argument("--max_events",
+        type=int, default=-1, 
+        help="Maximum number of events to use (for debugging). Default: all")
     # parser_train.add_argument("--ftrain",
     #     type=float, default=0.7, 
     #     help="Fraction of events to use for training. Default: 0.6.")
@@ -126,9 +123,6 @@ if __name__ == "__main__":
                         [i for i, entry in enumerate(classification_variables) if entry not in args.exclude]
                     )]
 
-                # logger.info('TRAIN_SHAPE = {}'.format(training_data[input_samples[-1]].shape))
-
-
             elif args.action == 'test':
                 pklpath = pklpath.replace('---train.pkl', '---test.pkl')
                 logger.info('Trying to load data from ' + pklpath)
@@ -143,7 +137,9 @@ if __name__ == "__main__":
                     testing_data[input_samples[-1]]['X'] = testing_data[input_samples[-1]]['X'][:, np.array(
                         [i for i, entry in enumerate(classification_variables) if entry not in args.exclude]
                     )]
+
         except Exception, e:
+            print e
             logger.info('No valid data found in {}. Reprocessing... '.format(pklpath))
             classification_variables, variable2type,\
                 training_data[input_samples[-1]], testing_data[input_samples[-1]],\
@@ -162,8 +158,7 @@ if __name__ == "__main__":
                 [i for i, entry in enumerate(classification_variables) if entry not in args.exclude]
             )]
 
-
-
+        # -- exclude variables from training
         if args.exclude:
             classification_variables = [entry for entry in classification_variables if entry not in args.exclude]
             for k in args.exclude:
@@ -171,18 +166,14 @@ if __name__ == "__main__":
     
     if args.action == 'train':
         # -- Combine all training data into a new sample
-
-        for d in training_data.values():
-            logger.info('LOOK -> {}'.format(d['X'].shape))
         train_data_combined = process_data.combine_datasets(training_data.values()) # added shuffling
 
-        if args.max_events != -1:
+        if args.max_events != -1: # implemented only for training, testing is already quick enough anyways
             train_data_combined = {k : v[:args.max_events] for k,v in train_data_combined.iteritems()}
             # could be moved into function above
 
         logger.info("Combining {} into one training sample with {} jet pairs".format(len(input_samples), train_data_combined["y"].shape[0]))
         combined_input_sample = args.training_id #input_samples[0] if len(input_samples) == 1 else "merged_inputs"
-
 
         for strategy_name in args.strategy:
             # -- Construct dictionary of available strategies

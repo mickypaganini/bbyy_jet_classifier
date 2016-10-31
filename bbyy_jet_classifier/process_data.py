@@ -47,9 +47,6 @@ def load(input_filename, treename, training_fraction, pklpath):
     utils.configure_logging()
     logger = logging.getLogger(__name__)
     logger.info("Loading input from ROOT file: {}".format(input_filename))
-    # MOVE THIS TO RUN CLASSIFIER WHEN YOU LOAD IN DATA!!
-    # for v_name in excluded_variables:
-    #     logging.getLogger("process_data").info("... excluding variable {}".format(v_name))
 
     # -- import all root files into data_rec
     data_rec = root2array(input_filename, treename)
@@ -63,10 +60,6 @@ def load(input_filename, treename, training_fraction, pklpath):
     # -- throw away events with no jet pairs
     n_events_before_rejection = data_rec.size
     data_rec = data_rec[np.array([len(data_rec["isCorrect"][ev]) > 0 for ev in xrange(data_rec.shape[0])])]
-    # -- only use N = max_events randomly chosen events
-    # MOVE THIS TO RUN CLASSIFIER WHEN YOU LOAD IN DATA!!
-    # if max_events > 0 :
-    #     data_rec = data_rec[np.random.randint(data_rec.shape[0], size=max_events)]
     logger.info("Found {} events of which {} ({}%) remain after rejecting empty events".format(n_events_before_rejection, data_rec.size, (100*data_rec.size)/n_events_before_rejection))
 
     # -- slice rec array to only contain input features
@@ -213,7 +206,7 @@ def combine_datasets(dataset_list):
     # -- Stack X arrays and then reshape
     X_combined = stack_arrays([dataset["X"] for dataset in dataset_list], asrecarray=True, usemask=False)
     # X_combined.resize(X_shape)
-    X_combined.reshape(X_shape)
+    X_combined = X_combined.reshape(X_shape)
 
     # -- Shuffle everything, otherwise the inputs will be ordered by class
     ix = range(X_combined.shape[0])
@@ -273,18 +266,15 @@ if __name__ == '__main__':
 
     import argparse
     import sys
-    parser = argparse.ArgumentParser(description="Prepare data for 2nd jet classifier")
+    parser = argparse.ArgumentParser(description="Pre-process data for 2nd jet classifier. Save to pkl.")
     parser.add_argument("--input",
         required=True, type=str, nargs="+", 
-        help="List of input file names")
+        help="List of input root file paths")
     parser.add_argument("--tree",
         type=str, default="events_1tag",
         help="Name of the tree in the ntuples. Default: events_1tag")
-    # parser.add_argument("--max_events",
-    #     type=int, default=-1, 
-    #     help="Maximum number of events to use (for debugging). Default: all")
-    parser.add_argument("--ftrain", type=float, default=0.6, 
-        help="Fraction of events to use for training. Default: 0.6.")
+    parser.add_argument("--ftrain", type=float, default=0.7,
+        help="Fraction of events to allocate for training. Default: 0.7.")
     args = parser.parse_args()
 
     for input_filename in args.input:
