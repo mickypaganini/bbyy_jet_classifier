@@ -23,42 +23,96 @@ The most recent set of input TTrees are in:
 
 ## Structure
 There are two main script to execute: `run_classifier.py` and `evaluate_event_performance.py`. These need to be executed sequentially whenever the output of the former looks satisfactory. <br/>
+One could also use the script `bbyy_jet_classifier/process_data.py` first to turn root files into pickle files of pre-processed data. This step is not necessary, because `run_classifier.py` will automatically invoke `bbyy_jet_classifier/process_data.py` if pre-processed data is not found. <br/>
 
-### Usage of `run_classifier.py`:
-This is the main script. It is composed of different parts that handle data processing, plotting, training and/or testing. This script connects all the steps in the pipeline. <br/>
-There are multiple options and flags that can be passed to this script.
+### Usage of `bbyy_jet_classifier/process_data.py`:
+This pre-processing step may be useful to ensure that the data is being processed correctly without corruption or unwanted results. It also allows us to re-use the data and make sure that samples that were previously used for training will always be separate from those used for testing. 
 ```
-usage: run_classifier.py [-h] --input INPUT [INPUT ...] [--tree TREE]
-                         [--output OUTPUT]
-                         [--exclude VARIABLE_NAME [VARIABLE_NAME ...]]
-                         [--strategy STRATEGY [STRATEGY ...]] [--grid_search]
-                         [--ftrain FTRAIN] [--training_sample TRAINING_SAMPLE]
-                         [--max_events MAX_EVENTS]
+usage: process_data.py [-h] --input INPUT [INPUT ...] [--tree TREE]
+                       [--ftrain FTRAIN]
 
-Run ML algorithms over ROOT TTree input
+Pre-process data for 2nd jet classifier. Save to pkl.
 
 optional arguments:
   -h, --help            show this help message and exit
   --input INPUT [INPUT ...]
-                        List of input file names
+                        List of input root file paths
   --tree TREE           Name of the tree in the ntuples. Default: events_1tag
-  --output OUTPUT       Output directory. Default: output
-  --exclude VARIABLE_NAME [VARIABLE_NAME ...]
-                        List of variables that are present in the tree but
-                        should not be used by the classifier
+  --ftrain FTRAIN       Fraction of events to allocate for training. Default:
+                        0.7.
+```
+It will process a series of root files, shuffle them, split them into training and testing samples according to the fraction specified using `--ftrain`, scale them, put them in convenient `X`, `y`, `w` format plus extra variables used for performance evaluation, store them in dictionaries, and save them out to pickle files with the following name format: `{fname}---{tree}---{frac}---train.pkl`, `{fname}---{tree}---{frac}---test.pkl`.
+
+### Usage of `run_classifier.py`:
+This is the main script. It is composed of different parts that handle data processing, plotting, training and/or testing. <br/>
+Training and testing have been divided such that the two tasks can be performed indipendently on separate runs of this code. To specify the mode, pass it as a command to the command line:
+```
+usage: run_classifier.py [-h] {train,test} ...
+
+Run ML classifiers for 2nd jet selection
+
+optional arguments:
+  -h, --help    show this help message and exit
+
+actions:
+  {train,test}
+    train       train BDT for jet-pair classification
+    test        test BDT for jet-pair classification
+```
+The `train` mode takes the following arguments:
+```
+usage: run_classifier.py train [-h] --input INPUT [INPUT ...] [--tree TREE]
+                               [--strategy STRATEGY [STRATEGY ...]]
+                               [--exclude VARIABLE_NAME [VARIABLE_NAME ...]]
+                               [--max_events MAX_EVENTS] [--output OUTPUT]
+                               --training_id TRAINING_ID [--grid_search]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT [INPUT ...]
+                        List of original ROOT input file paths
+  --tree TREE           Name of the tree in the ntuples. Default: events_1tag
   --strategy STRATEGY [STRATEGY ...]
                         Type of BDT to use. Options are: RootTMVA, sklBDT.
                         Default: both
-  --grid_search         Pass this flag to run a grid search to determine BDT
-                        parameters
-  --ftrain FTRAIN       Fraction of events to use for training. Default: 0.6.
-                        Set to 0 for testing only.
-  --training_sample TRAINING_SAMPLE
-                        Directory with pre-trained BDT to be used for testing
+  --exclude VARIABLE_NAME [VARIABLE_NAME ...]
+                        List of variables that are present in the tree but
+                        should not be used by the classifier
   --max_events MAX_EVENTS
                         Maximum number of events to use (for debugging).
                         Default: all
+  --output OUTPUT       Output directory. Default: output
+  --training_id TRAINING_ID
+                        String to identify training in the future or to select
+                        which pretrained model to test
+  --grid_search         Pass this flag to run a grid search to determine BDT
+                        parameters
 ```
+The `test` mode takes the following arguments:
+```
+usage: run_classifier.py test [-h] --input INPUT [INPUT ...] [--tree TREE]
+                              [--strategy STRATEGY [STRATEGY ...]]
+                              [--exclude VARIABLE_NAME [VARIABLE_NAME ...]]
+                              [--output OUTPUT] --training_id TRAINING_ID
+                              [--max_events MAX_EVENTS]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT [INPUT ...]
+                        List of original ROOT input file paths
+  --tree TREE           Name of the tree in the ntuples. Default: events_1tag
+  --strategy STRATEGY [STRATEGY ...]
+                        Type of BDT to use. Options are: RootTMVA, sklBDT.
+                        Default: both
+  --exclude VARIABLE_NAME [VARIABLE_NAME ...]
+                        List of variables that are present in the tree but
+                        should not be used by the classifier
+  --output OUTPUT       Output directory. Default: output
+  --training_id TRAINING_ID
+                        String to identify training in the future or to select
+                        which pretrained model to test
+```
+
 ### Usage of `evaluate_event_performance.py`:
 Event level performance evaluation quantified in terms of Asimov significance. <br/>
 It compares the performance of three old strategies (`mHmatch`, `pThigh`, `pTjb`) with that of the BDT. The BDT performance is evaluated after excluding events in which the highest BDT score is < threshold. For many threshold values, the performance can be computed in paralled. <br/>
@@ -84,39 +138,40 @@ optional arguments:
 ### Training on SM inputs
 This will train two BDTs (one with `TMVA`, one with `scikit-learn`) on 1000 events (for debugging purposes) from the Standard Model input files, without usin the Delta_phi_jb variable.
 ```
-python run_classifier.py --input inputs/SM_bkg_photon_jet.root inputs/SM_hh.root --exclude Delta_phi_jb --strategy RootTMVA sklBDT --max_events 1000
+python run_classifier.py train --input inputs/SM_bkg_photon_jet.root inputs/SM_hh.root --exclude Delta_phi_jb --strategy RootTMVA sklBDT --max_events 1000
 ```
 
-### Testing previously trained classifier on different individual BSM inputs -- NB. be careful about double counting here
-Note: `--ftrain 0` indicates that 0% of the input samples should be used for training; therefore, this will only <i>test</i> the performance of a previously trained net (the location of which is indicated by `--training_sample`) on the input files specified after `--input`.
+### Testing previously trained classifier on different individual BSM inputs
+This will only test the performance of a previously trained BDT (the location of which is indicated by `--training_id`) on the input files specified after `--input`. In this case, these examples show how to test the performance of a scikit-learn BDT trained on merged SM samples on various BSM samples.
 ```
-python run_classifier.py --input inputs/X275_hh.root --exclude Delta_phi_jb --strategy sklBDT --ftrain 0 --training_sample SM_merged
+python run_classifier.py test --input inputs/X275_hh.root --exclude Delta_phi_jb --strategy sklBDT --training_id SM_merged
 
-python run_classifier.py --input inputs/X300_hh.root --exclude Delta_phi_jb --strategy sklBDT --ftrain 0 --training_sample SM_merged
+python run_classifier.py test --input inputs/X300_hh.root --exclude Delta_phi_jb --strategy sklBDT --training_id SM_merged
 
-python run_classifier.py --input inputs/X325_hh.root --exclude Delta_phi_jb --strategy sklBDT --ftrain 0 --training_sample SM_merged
+python run_classifier.py test --input inputs/X325_hh.root --exclude Delta_phi_jb --strategy sklBDT --training_id SM_merged
 
-python run_classifier.py --input inputs/X350_hh.root --exclude Delta_phi_jb --strategy sklBDT --ftrain 0 --training_sample SM_merged
+python run_classifier.py test --input inputs/X350_hh.root --exclude Delta_phi_jb --strategy sklBDT --training_id SM_merged
 
-python run_classifier.py --input inputs/X400_hh.root --exclude Delta_phi_jb --strategy sklBDT --ftrain 0 --training_sample SM_merged
+python run_classifier.py test --input inputs/X400_hh.root --exclude Delta_phi_jb --strategy sklBDT --training_id SM_merged
 ```
 
 ### Training and testing on all inputs
-By default, 60% of the input files will be used for training, 40% for testing.
+By default, 70% of the input files will be used for training, 30% for testing.
 ```
-python run_classifier.py --input inputs/*root --exclude Delta_phi_jb
+python run_classifier.py train --input inputs/*root --exclude Delta_phi_jb --training_id all
+python run_classifier.py test --input inputs/*root --exclude Delta_phi_jb --training_id all
 ```
 
-### Training and testing on low-mass inputs
+### Training on low-mass inputs
 The signal samples in the mass range between 275 and 350 GeV are commonly identified as the "low mass" samples. A classifier trained on those will then be identified by that tag `low_mass` and placed in an homonymous folder. 
 ```
-python run_classifier.py --input inputs/SM_bkg_photon_jet.root inputs/X275_hh.root inputs/X300_hh.root inputs/X325_hh.root inputs/X350_hh.root --exclude Delta_phi_jb --output low_mass
+python run_classifier.py train --input inputs/SM_bkg_photon_jet.root inputs/X275_hh.root inputs/X300_hh.root inputs/X325_hh.root inputs/X350_hh.root --exclude Delta_phi_jb --training_id low_mass
 ```
 
-### Training and testing on high-mass inputs
+### Training on high-mass inputs
 Conversely, the Standard Model signal samples and the BSM sample with resonant mass of 400 GeV are commonly identified as the "high mass samples. A classifier trained on those will then be identified by that tag `high_mass` and placed in an homonymous folder. 
 ```
-python run_classifier.py --input inputs/SM_bkg_photon_jet.root inputs/X400_hh.root inputs/SM_hh.root --exclude Delta_phi_jb --output high_mass
+python run_classifier.py train --input inputs/SM_bkg_photon_jet.root inputs/X400_hh.root inputs/SM_hh.root --exclude Delta_phi_jb --training_id high_mass
 ```
 
 ### Evaluate event-level performance
