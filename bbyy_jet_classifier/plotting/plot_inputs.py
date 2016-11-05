@@ -18,6 +18,15 @@ ROOT_2_LATEX = {
     "passes_WP85": r"Passes 85% WP",
     "pT_j": r"$p_{T}^{j}$",
     "pT_jb": r"$p_{T}^{jb}$",
+    'dPhi_yy_jb': r"$\Delta\phi(\gamma\gamma, jb)$",
+    'dEta_yy_jb': r"$\Delta\eta(\gamma\gamma, jb)$",
+    'dR_yy_jb': r"$\Delta \mathrm{R}(\gamma\gamma, jb)$",
+    'fdiff_pT_yy_jb': r"$(p_{T, yy} - p_{T, jb}) / p_{T, yy}$",
+    'proj_pT_yy_jb': r"$p_{T, jb} / p_{T, \gamma \gamma} \cdot \mathrm{cos} (\Delta\phi(\gamma\gamma, jb))$",
+    'diphoton_pT': r"$p_{T, \gamma \gamma}$",
+    'diphoton_eta': r"$\eta_{\gamma \gamma}$",
+    'diphoton_phi': r"$\phi_{\gamma \gamma}$",
+    'diphoton_m': r"$m_{\gamma \gamma}$",
 }
 
 

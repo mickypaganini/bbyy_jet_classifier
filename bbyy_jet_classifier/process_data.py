@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest, f_classif
 import os
 import utils
+import pandas as pd
 
 TYPE_2_CHAR = {"int32": "I", "float64": "D", "float32": "F"}
 
@@ -20,8 +21,9 @@ def load(input_filename, treename, training_fraction, pklpath):
     Args:
     -----
             input_filename = string, the path to the input root file
-            excluded_variables = list of strings, names of branches not to use for training
+            treename = 
             training_fraction = float between 0 and 1, fraction of examples to use for training
+            pklpath = 
 
     Returns:
     --------
@@ -50,6 +52,21 @@ def load(input_filename, treename, training_fraction, pklpath):
 
     # -- import all root files into data_rec
     data_rec = root2array(input_filename, treename)
+    df = pd.DataFrame(data_rec)
+    df[[vname for vname in data_rec.dtype.names if data_rec[vname].dtype != 'O']] = np.array(
+        [
+            [
+                np.array([data_rec[vname][ev]] * len(data_rec['m_jb'][ev])) 
+                for vname in data_rec.dtype.names 
+                if data_rec[vname].dtype != 'O'
+            ] 
+            for ev in range(data_rec.shape[0])
+        ]
+    )
+
+    data_rec = df.to_records(index=False)
+    #print [data_rec[v_name][0] for v_name in data_rec.dtype.names]
+
     # -- ordered dictionary of branches and their type
     variable2type = OrderedDict(((v_name, TYPE_2_CHAR[data_rec[v_name][0].dtype.name]) for v_name in data_rec.dtype.names
                                  #if v_name not in excluded_variables
@@ -67,7 +84,8 @@ def load(input_filename, treename, training_fraction, pklpath):
     y = data_rec["isCorrect"]
     # -- NB. weights can be positive or negative at NLO
     #    convert one weight per event to one weight per jet
-    w = np.array([[data_rec["event_weight"][ev]] * len(data_rec["isCorrect"][ev]) for ev in xrange(data_rec.shape[0])])
+    #w = np.array([[data_rec["event_weight"][ev]] * len(data_rec["isCorrect"][ev]) for ev in xrange(data_rec.shape[0])])
+    w = data_rec["event_weight"]
     yhat_mHmatch = data_rec["idx_by_mH"]
     yhat_pThigh = data_rec["idx_by_pT"]
     yhat_pTjb = data_rec["idx_by_pT_jb"]
@@ -104,7 +122,7 @@ def load(input_filename, treename, training_fraction, pklpath):
                         "m_jb": data_rec["m_jb"][ix_test],
                         "pT_j": data_rec["pT_j"][ix_test],
                         "w": data_rec["event_weight"][ix_test]}
-
+    
     # -- ANOVA for feature selection (please, know what you're doing)
     if training_fraction > 0:
         feature_selection(train_data, classification_variables, 5)
@@ -123,7 +141,7 @@ def load(input_filename, treename, training_fraction, pklpath):
     }
 
     logger.info('Dumping pickle in {}'.format(pklpath))
-    pickle.dump(train_data, open(pklpath, 'wb'), pickle.HIGHEST_PROTOCOL)
+    pickle.dump(train_dict, open(pklpath, 'wb'), pickle.HIGHEST_PROTOCOL)
     pickle.dump(test_dict, open(pklpath.replace('---train.pkl', '---test.pkl'), 'wb'), pickle.HIGHEST_PROTOCOL)
 
     return classification_variables, variable2type, train_data, test_data, yhat_old_test_data, test_events_data
@@ -170,7 +188,7 @@ def balance_weights(y_train, w_train, targetN=10000):
     --------
         w_train = array of dim (# training examples) with the new rescaled weights
     """
-
+    
     for classID in np.unique(y_train):
         w_train[y_train == classID] *= float(targetN) / float(np.sum(w_train[y_train == classID]))
 
